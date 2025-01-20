@@ -6,7 +6,10 @@ from PIL import Image
 import time
 from typing import Optional, Union
 
-from .openai_model import OpenAIModel, GenerateOutput, PROMPT_TEMPLATE_ANSWER, PROMPT_TEMPLATE_CONTINUE
+from .openai_model import OpenAIModel, GenerateOutput
+
+PROMPT_TEMPLATE_ANSWER = 'Your response need to be function calling format'
+PROMPT_TEMPLATE_CONTINUE = 'Your response need to be function calling format'
 
 class AgentOpenAIModel(OpenAIModel):
     def __init__(self, model: str, additional_prompt: str = "ANSWER", **kwargs):
@@ -44,8 +47,7 @@ class AgentOpenAIModel(OpenAIModel):
         self,
         prompt: Optional[Union[str, list[str]]],
         images: Optional[Union[str, list[str], np.ndarray, list[np.ndarray]]] = None,
-        functions: Optional[list[dict]] = None,
-        function_call: Optional[Union[str, dict]] = None,
+        functions: Optional[dict] = None,
         max_tokens: int = None,
         top_p: float = 1.0,
         num_return_sequences: int = 1,
@@ -95,12 +97,6 @@ class AgentOpenAIModel(OpenAIModel):
         if images and not supports_vision:
             raise ValueError(f"Model {self.model} does not support vision/multimodal inputs")
 
-        # Process images if they are numpy arrays
-        if isinstance(images, np.ndarray):
-            images = [self._process_image_to_base64(images)]
-        elif isinstance(images, list) and len(images) > 0 and isinstance(images[0], np.ndarray):
-            images = [self._process_image_to_base64(img) for img in images]
-
         for i in range(1, retry + 1):
             try:
                 if rate_limit_per_min is not None:
@@ -127,42 +123,30 @@ class AgentOpenAIModel(OpenAIModel):
 
                     messages = [{"role": "user", "content": content if len(content) > 1 else content[0]["text"]}]
 
-                    # build the API call parameters
-                    api_params = {
-                        "model": self.model,
-                        "messages": messages,
-                        "max_tokens": max_tokens,
-                        "temperature": temperature,
-                        "top_p": top_p,
-                        "n": num_return_sequences,
-                        "stop": stop,
-                    }
-
-                    # add the function calling related parameters
-                    if functions:
-                        api_params["functions"] = functions
-                    if function_call:
-                        api_params["function_call"] = function_call
-
-                    response = self.client.chat.completions.create(**api_params)
-
+                    response = self.client.chat.completions.create(
+                        model=self.model,
+                        messages=messages,
+                        max_tokens=max_tokens,
+                        temperature=temperature,
+                        top_p=top_p,
+                        n=num_return_sequences,
+                        tools=functions if functions else [],
+                        tool_choice="required"
+                    )
                     # process the returned results
                     results = []
                     for choice in response.choices:
-                        if hasattr(choice, 'function_call') and choice.function_call:
+                        if hasattr(choice, 'function') and choice.function:
                             results.append({
                                 "function_call": {
-                                    "name": choice.function_call.name,
-                                    "arguments": choice.function_call.arguments
+                                    "name": choice.function.name,
+                                    "arguments": choice.function.arguments
                                 }
                             })
                         else:
-                            results.append(choice.message.content)
+                            results.append(choice.message.tool_calls)
 
-                    return GenerateOutput(
-                        text=results,
-                        log_prob=None,
-                    )
+                    return results
                 else:
                     response = self.client.chat.completions.create(
                         model=self.model,
@@ -171,14 +155,10 @@ class AgentOpenAIModel(OpenAIModel):
                         temperature=temperature,
                         top_p=top_p,
                         n=num_return_sequences,
-                        stop=stop,
                         logprobs=0,
                         **kwargs,
                     )
-                    return GenerateOutput(
-                        text=[choice["text"] for choice in response.choices],
-                        log_prob=[choice["logprobs"] for choice in response["choices"]],
-                    )
+                    return response.choices[0].message.content
 
             except Exception as e:
                 print(f"An Error Occurred: {e}, sleeping for {i} seconds")
