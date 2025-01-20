@@ -90,11 +90,11 @@ class HFModel(LanguageModel):
             )
         if peft_pth is not None:
             self.model = PeftModel.from_pretrained(
-                self.model, 
+                self.model,
                 peft_pth,
                 torch_dtype=torch.float16
             )
-        
+
         self.max_new_tokens = max_new_tokens
         self.max_batch_size = max_batch_size
         self.max_length = max_length
