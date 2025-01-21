@@ -65,11 +65,11 @@ class SGLangModel(LanguageModel):
 
         if top_k is not None:
             warnings.warn("top_k is not supported by SGLangModel for generation. Use top_p (nucleus sampling) instead.")
-        
+
         max_new_tokens = self.max_new_tokens if max_new_tokens is None else max_new_tokens
         temperature = self.temperature if temperature is None else temperature
         logprobs = 0 if logprobs is None else logprobs
-        
+
         if not do_sample or temperature == 0.0:
             warnings.warn('temperature=0.0 is equivalent to greedy search, ')
             do_sample = False
@@ -84,7 +84,7 @@ class SGLangModel(LanguageModel):
             stop = eos_token_id
 
         if isinstance(prompt, list):
-            assert len(prompt) == 1 
+            assert len(prompt) == 1
             prompt = prompt[0]
         if additional_prompt is None and self.additional_prompt is not None:
             additional_prompt = self.additional_prompt
