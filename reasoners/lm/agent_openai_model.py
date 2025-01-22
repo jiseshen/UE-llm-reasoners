@@ -192,6 +192,7 @@ class AgentOpenAIModel(OpenAIModel):
         temperature=None,
         additional_prompt=None,
         retry=64,
+        action_history: Optional[list[str]] = None,
         **kwargs,
     ) -> GenerateOutput:
 
@@ -222,6 +223,10 @@ class AgentOpenAIModel(OpenAIModel):
                     "type": "image_url",
                     "image_url": {"url": f"data:image/jpeg;base64,{img_data}"}
                 })
+
+        if action_history:
+            user_content.append({"type": "text", "text": f"Your action history is: {action_history}"})
+
         messages.append({"role": "user", "content": user_content if len(user_content) > 1 else user_content[0]["text"]})
 
         is_instruct_model = self.is_instruct_model
